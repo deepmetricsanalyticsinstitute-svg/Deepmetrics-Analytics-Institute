@@ -35,7 +35,7 @@ export const streamCourseAdvice = async (
 
   try {
     const chat = ai.chats.create({
-      model: 'gemini-2.5-flash',
+      model: 'gemini-3-flash-preview',
       config: {
         systemInstruction: systemInstruction,
         temperature: 0.7,

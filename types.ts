@@ -8,6 +8,7 @@ export enum View {
   CERTIFICATE = 'CERTIFICATE',
   EDIT_COURSE = 'EDIT_COURSE',
   CREATE_COURSE = 'CREATE_COURSE',
+  VIDEO_GENERATOR = 'VIDEO_GENERATOR',
 }
 
 export enum CourseLevel {

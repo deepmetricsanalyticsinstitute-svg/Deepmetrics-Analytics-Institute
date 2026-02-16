@@ -9,6 +9,7 @@ import { Button } from './components/Button';
 import { Certificate } from './components/Certificate';
 import { CourseEditor } from './components/CourseEditor';
 import { CourseDetailsModal } from './components/CourseDetailsModal';
+import { VideoGenerator } from './components/VideoGenerator';
 import { NotificationContainer, Notification } from './components/NotificationContainer';
 import { supabase } from './supabaseClient';
 
@@ -543,6 +544,9 @@ Deepmetrics Academic Administration`
              <Auth view={currentView} onSwitch={setCurrentView} onAuthSuccess={handleAuthSuccess} />
           </div>
         );
+        
+      case View.VIDEO_GENERATOR:
+        return <VideoGenerator />;
 
       case View.DASHBOARD:
         if (!user) return null;
@@ -869,7 +873,7 @@ Deepmetrics Academic Administration`
         />
       )}
 
-      {currentView !== View.CERTIFICATE && currentView !== View.EDIT_COURSE && currentView !== View.CREATE_COURSE && <AIChat courses={courses} />}
+      {currentView !== View.CERTIFICATE && currentView !== View.EDIT_COURSE && currentView !== View.CREATE_COURSE && currentView !== View.VIDEO_GENERATOR && <AIChat courses={courses} />}
       
       {currentView !== View.CERTIFICATE && (
         <footer className="bg-gray-900 text-white py-12 mt-auto">
