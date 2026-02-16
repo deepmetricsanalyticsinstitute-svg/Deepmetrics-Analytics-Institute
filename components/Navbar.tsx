@@ -17,7 +17,7 @@ export const Navbar: React.FC<NavbarProps> = ({ currentView, onChangeView, user,
   const navItems = [
     { label: 'Home', view: View.HOME },
     { label: 'Training Programs', view: View.COURSES },
-    { label: 'Video Studio', view: View.VIDEO_GENERATOR },
+    { label: 'Video Gallery', view: View.VIDEO_GENERATOR },
   ];
 
   if (user) {

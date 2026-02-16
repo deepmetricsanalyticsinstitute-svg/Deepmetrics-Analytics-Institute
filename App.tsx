@@ -546,7 +546,7 @@ Deepmetrics Academic Administration`
         );
         
       case View.VIDEO_GENERATOR:
-        return <VideoGenerator />;
+        return <VideoGenerator user={user} />;
 
       case View.DASHBOARD:
         if (!user) return null;
