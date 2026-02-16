@@ -72,10 +72,10 @@ const RichTextEditor = ({ label, value, onChange, placeholder }: { label: string
                 <div
                     ref={editorRef}
                     contentEditable
-                    className="p-3 min-h-[150px] outline-none text-sm text-gray-900 [&>ul]:list-disc [&>ul]:pl-5 [&>ol]:list-decimal [&>ol]:pl-5"
+                    className="p-3 min-h-[150px] outline-none text-sm text-gray-900 [&>ul]:list-disc [&>ul]:pl-5 [&>ol]:list-decimal [&>ol]:pl-5 empty:before:content-[attr(data-placeholder)] empty:before:text-gray-400"
                     onInput={handleInput}
                     suppressContentEditableWarning
-                    placeholder={placeholder}
+                    data-placeholder={placeholder}
                 />
             </div>
             <p className="text-xs text-gray-500 mt-1">Use the toolbar to format text.</p>
