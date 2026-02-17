@@ -13,6 +13,7 @@ interface VideoItem {
   type: string;
   level: 'Beginner' | 'Intermediate' | 'Advanced' | 'All Levels';
   category: string;
+  url?: string;
 }
 
 const MOCK_VIDEOS: VideoItem[] = [
@@ -28,6 +29,7 @@ const MOCK_VIDEOS: VideoItem[] = [
 ];
 
 export const VideoGenerator: React.FC<VideoGeneratorProps> = ({ user }) => {
+  const [videos, setVideos] = useState<VideoItem[]>(MOCK_VIDEOS);
   const [videoUrl, setVideoUrl] = useState<string | null>(null);
   const [videoName, setVideoName] = useState<string>('');
   const [error, setError] = useState<string | null>(null);
@@ -35,49 +37,92 @@ export const VideoGenerator: React.FC<VideoGeneratorProps> = ({ user }) => {
   // Filter State
   const [selectedLevel, setSelectedLevel] = useState<string>('All');
   const [selectedCategory, setSelectedCategory] = useState<string>('All');
+
+  // Upload Form State
+  const [uploadFile, setUploadFile] = useState<File | null>(null);
+  const [uploadMeta, setUploadMeta] = useState({
+      title: '',
+      duration: '',
+      type: 'Lecture',
+      level: 'Beginner',
+      category: 'General'
+  });
   
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const isAdmin = user?.role === 'admin';
 
-  const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (file) {
         if (!file.type.startsWith('video/')) {
             setError("Please upload a valid video file.");
             return;
         }
-
-        const url = URL.createObjectURL(file);
-        setVideoUrl(url);
-        setVideoName(file.name);
+        setUploadFile(file);
+        // Auto-fill title if empty
+        if (!uploadMeta.title) {
+            setUploadMeta(prev => ({ ...prev, title: file.name.replace(/\.[^/.]+$/, "") }));
+        }
         setError(null);
     }
   };
 
-  const handleRemoveVideo = () => {
-      setVideoUrl(null);
-      setVideoName('');
-      if (fileInputRef.current) {
-          fileInputRef.current.value = '';
+  const handleUploadToLibrary = () => {
+      if (!uploadFile) {
+          setError("Please select a video file.");
+          return;
       }
+      if (!uploadMeta.title) {
+          setError("Please provide a title.");
+          return;
+      }
+
+      const url = URL.createObjectURL(uploadFile);
+      const newVideo: VideoItem = {
+          id: `local_${Date.now()}`,
+          title: uploadMeta.title,
+          duration: uploadMeta.duration || "Unknown",
+          type: uploadMeta.type,
+          level: uploadMeta.level as any,
+          category: uploadMeta.category,
+          url: url
+      };
+
+      setVideos([newVideo, ...videos]);
+      
+      // Reset Form
+      setUploadFile(null);
+      setUploadMeta({
+          title: '',
+          duration: '',
+          type: 'Lecture',
+          level: 'Beginner',
+          category: 'General'
+      });
+      if (fileInputRef.current) fileInputRef.current.value = '';
+      
+      // Auto play the new video
+      setVideoUrl(url);
+      setVideoName(newVideo.title);
   };
   
-  const handleSelectMockVideo = (video: VideoItem) => {
-      // In a real app, this would set a URL. Since we don't have real URLs for mock videos,
-      // we'll just set the name and maybe show a placeholder or alert.
-      // For now, let's just update the name to show interaction.
+  const handleSelectVideo = (video: VideoItem) => {
       setVideoName(video.title);
-      setVideoUrl(null); // Reset URL as we don't have one for these mocks
+      if (video.url) {
+          setVideoUrl(video.url);
+      } else {
+          setVideoUrl(null); // Reset URL as we don't have one for mock videos
+      }
   };
 
-  const filteredVideos = MOCK_VIDEOS.filter(video => {
+  const filteredVideos = videos.filter(video => {
       const matchLevel = selectedLevel === 'All' || video.level === selectedLevel;
       const matchCategory = selectedCategory === 'All' || video.category === selectedCategory;
       return matchLevel && matchCategory;
   });
 
-  const categories = ['All', ...Array.from(new Set(MOCK_VIDEOS.map(v => v.category)))];
+  const categories = ['All', ...Array.from(new Set(videos.map(v => v.category)))];
   const levels = ['All', 'Beginner', 'Intermediate', 'Advanced', 'All Levels'];
 
   return (
@@ -107,7 +152,7 @@ export const VideoGenerator: React.FC<VideoGeneratorProps> = ({ user }) => {
                           <p className="text-gray-400 mt-2 text-sm max-w-sm">
                              {videoName && !videoUrl ? "This is a demo video entry. In a full version, this would stream the content." : 
                              isAdmin 
-                                ? "Use the upload panel to preview a video from your local disk." 
+                                ? "Use the upload panel to add a video from your local disk." 
                                 : "Check back later for new course recordings and updates."}
                           </p>
                       </div>
@@ -118,7 +163,7 @@ export const VideoGenerator: React.FC<VideoGeneratorProps> = ({ user }) => {
                   <h2 className="text-2xl font-bold text-gray-900">{videoName || 'Course Introduction'}</h2>
                   <p className="text-gray-500 mt-2">
                       {videoUrl 
-                        ? "Local preview mode. This video is loaded from your device." 
+                        ? "Local video loaded." 
                         : videoName ? "Demo content selected." : "Select a video to start playback."}
                   </p>
               </div>
@@ -129,40 +174,82 @@ export const VideoGenerator: React.FC<VideoGeneratorProps> = ({ user }) => {
               {isAdmin && (
                   <div className="bg-indigo-50 rounded-xl p-6 border border-indigo-100 shadow-sm">
                       <h3 className="text-lg font-bold text-indigo-900 mb-4 flex items-center gap-2">
-                          <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" /></svg>
-                          Admin Upload
+                          <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" /></svg>
+                          Add New Video
                       </h3>
-                      <div className="space-y-4">
-                          <p className="text-sm text-indigo-700">
-                              Upload a video file from your local disk to display in the player.
-                          </p>
+                      <div className="space-y-3">
+                          <input 
+                              type="text"
+                              placeholder="Video Title"
+                              value={uploadMeta.title}
+                              onChange={(e) => setUploadMeta({...uploadMeta, title: e.target.value})}
+                              className="w-full text-sm rounded-md border-indigo-200 focus:ring-indigo-500 focus:border-indigo-500"
+                          />
+                          
+                          <div className="grid grid-cols-2 gap-2">
+                              <select 
+                                  value={uploadMeta.level}
+                                  onChange={(e) => setUploadMeta({...uploadMeta, level: e.target.value})}
+                                  className="text-sm rounded-md border-indigo-200 focus:ring-indigo-500 focus:border-indigo-500"
+                              >
+                                  <option value="Beginner">Beginner</option>
+                                  <option value="Intermediate">Intermediate</option>
+                                  <option value="Advanced">Advanced</option>
+                                  <option value="All Levels">All Levels</option>
+                              </select>
+                              <input 
+                                  type="text"
+                                  placeholder="Category"
+                                  value={uploadMeta.category}
+                                  onChange={(e) => setUploadMeta({...uploadMeta, category: e.target.value})}
+                                  className="w-full text-sm rounded-md border-indigo-200 focus:ring-indigo-500 focus:border-indigo-500"
+                              />
+                          </div>
+
+                          <div className="grid grid-cols-2 gap-2">
+                               <input 
+                                  type="text"
+                                  placeholder="Type (e.g. Lecture)"
+                                  value={uploadMeta.type}
+                                  onChange={(e) => setUploadMeta({...uploadMeta, type: e.target.value})}
+                                  className="w-full text-sm rounded-md border-indigo-200 focus:ring-indigo-500 focus:border-indigo-500"
+                              />
+                               <input 
+                                  type="text"
+                                  placeholder="Duration (e.g. 10:00)"
+                                  value={uploadMeta.duration}
+                                  onChange={(e) => setUploadMeta({...uploadMeta, duration: e.target.value})}
+                                  className="w-full text-sm rounded-md border-indigo-200 focus:ring-indigo-500 focus:border-indigo-500"
+                              />
+                          </div>
                           
                           <input 
                                 type="file" 
                                 ref={fileInputRef}
                                 className="hidden"
                                 accept="video/*"
-                                onChange={handleFileUpload}
+                                onChange={handleFileSelect}
                             />
                             
-                          <Button 
-                                onClick={() => fileInputRef.current?.click()}
-                                className="w-full shadow-md"
-                          >
-                                <svg className="w-5 h-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" /></svg>
-                                Select Video File
-                          </Button>
-
-                          {videoUrl && (
-                              <Button 
-                                variant="danger" 
-                                onClick={handleRemoveVideo}
-                                className="w-full"
-                              >
-                                  Clear Player
-                              </Button>
-                          )}
+                          <div className="flex gap-2">
+                            <Button 
+                                    onClick={() => fileInputRef.current?.click()}
+                                    className="flex-1 text-xs"
+                                    variant="outline"
+                            >
+                                    {uploadFile ? 'Change File' : 'Select File'}
+                            </Button>
+                            <Button 
+                                    onClick={handleUploadToLibrary}
+                                    className="flex-1 text-xs"
+                                    disabled={!uploadFile}
+                            >
+                                    Add to Library
+                            </Button>
+                          </div>
                           
+                          {uploadFile && <p className="text-xs text-gray-500 truncate">Selected: {uploadFile.name}</p>}
+
                           {error && (
                               <p className="text-xs text-red-600 bg-red-50 p-2 rounded border border-red-200">
                                   {error}
@@ -217,7 +304,7 @@ export const VideoGenerator: React.FC<VideoGeneratorProps> = ({ user }) => {
                         {filteredVideos.map((item) => (
                             <li 
                                 key={item.id} 
-                                onClick={() => handleSelectMockVideo(item)}
+                                onClick={() => handleSelectVideo(item)}
                                 className={`px-6 py-4 hover:bg-gray-50 transition-colors flex items-center justify-between group cursor-pointer ${videoName === item.title ? 'bg-indigo-50 border-l-4 border-indigo-600' : ''}`}
                             >
                                 <div className="flex-1 min-w-0">

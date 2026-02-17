@@ -13,6 +13,37 @@ import { VideoGenerator } from './components/VideoGenerator';
 import { NotificationContainer, Notification } from './components/NotificationContainer';
 import { supabase } from './supabaseClient';
 
+// Home Content Configuration
+interface Feature {
+    title: string;
+    description: string;
+}
+
+interface HomeContent {
+    heroTitle: string;
+    heroSubtitle: string;
+    features: Feature[];
+}
+
+const DEFAULT_HOME_CONTENT: HomeContent = {
+    heroTitle: "Master the Data Future",
+    heroSubtitle: "Deepmetrics Analytics Institute provides world-class education in Data Science, AI, and Business Intelligence. Transform your career today.",
+    features: [
+        {
+            title: "AI-Driven Learning",
+            description: "Personalized curriculum recommendations powered by advanced AI to match your career path."
+        },
+        {
+            title: "Expert Instructors",
+            description: "Learn from industry veterans from top tech companies and research institutions."
+        },
+        {
+            title: "Hands-on Projects",
+            description: "Build a portfolio with real-world datasets and capstone projects to showcase to employers."
+        }
+    ]
+};
+
 const App: React.FC = () => {
   const [currentView, setCurrentView] = useState<View>(View.HOME);
   const [user, setUser] = useState<User | null>(null);
@@ -23,6 +54,15 @@ const App: React.FC = () => {
   const [courseToDelete, setCourseToDelete] = useState<string | null>(null);
   const [notifications, setNotifications] = useState<Notification[]>([]);
   
+  // Home Page Customization State
+  const DEFAULT_HERO_IMAGE = 'https://images.unsplash.com/photo-1551434678-e076c223a692?ixlib=rb-1.2.1&ixid=eyJhcHBfaWQiOjEyMDd9&auto=format&fit=crop&w=2850&q=80';
+  const [homeHeroImage, setHomeHeroImage] = useState<string>(DEFAULT_HERO_IMAGE);
+  
+  // Text Content State
+  const [homeContent, setHomeContent] = useState<HomeContent>(DEFAULT_HOME_CONTENT);
+  const [isEditingHome, setIsEditingHome] = useState(false);
+  const [tempHomeContent, setTempHomeContent] = useState<HomeContent>(DEFAULT_HOME_CONTENT);
+
   // Modal State
   const [viewingCourse, setViewingCourse] = useState<Course | null>(null);
 
@@ -64,7 +104,26 @@ const App: React.FC = () => {
         }
     }
 
-    // 3. Check Supabase Session
+    // 3. Load Home Hero Image persistence
+    const storedHomeImage = localStorage.getItem('deepmetric_home_image');
+    if (storedHomeImage) {
+        setHomeHeroImage(storedHomeImage);
+    }
+
+    // 4. Load Home Content persistence
+    const storedHomeContent = localStorage.getItem('deepmetric_home_content');
+    if (storedHomeContent) {
+        try {
+            const parsedContent = JSON.parse(storedHomeContent);
+            if (parsedContent && parsedContent.features && Array.isArray(parsedContent.features)) {
+                setHomeContent(parsedContent);
+            }
+        } catch (e) {
+            console.error("Failed to parse home content", e);
+        }
+    }
+
+    // 5. Check Supabase Session
     const initSession = async () => {
         const { data: { session } } = await supabase.auth.getSession();
         if (session?.user?.email) {
@@ -433,6 +492,51 @@ Deepmetrics Academic Administration`
     addNotification('New training program created successfully', 'success');
   };
 
+  // Home Page Image Handler
+  const handleHomeImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+        // 1.5MB limit to be safe with localStorage
+        if (file.size > 1.5 * 1024 * 1024) {
+             addNotification('Image too large. Max 1.5MB for local storage.', 'info');
+             return;
+        }
+        const reader = new FileReader();
+        reader.onloadend = () => {
+            const result = reader.result as string;
+            setHomeHeroImage(result);
+            localStorage.setItem('deepmetric_home_image', result);
+            addNotification('Home page background updated successfully', 'success');
+        };
+        reader.readAsDataURL(file);
+    }
+  };
+
+  const handleResetHomeImage = () => {
+    setHomeHeroImage(DEFAULT_HERO_IMAGE);
+    localStorage.removeItem('deepmetric_home_image');
+    addNotification('Restored default background', 'info');
+  };
+  
+  // Home Page Content Editing Handlers
+  const handleSaveHomeContent = () => {
+      setHomeContent(tempHomeContent);
+      localStorage.setItem('deepmetric_home_content', JSON.stringify(tempHomeContent));
+      setIsEditingHome(false);
+      addNotification('Home page content updated successfully', 'success');
+  };
+  
+  const handleCancelEditHome = () => {
+      setTempHomeContent(homeContent);
+      setIsEditingHome(false);
+  };
+  
+  const handleFeatureEdit = (index: number, field: 'title' | 'description', value: string) => {
+      const newFeatures = [...tempHomeContent.features];
+      newFeatures[index] = { ...newFeatures[index], [field]: value };
+      setTempHomeContent({ ...tempHomeContent, features: newFeatures });
+  };
+
   // Calculate global pending requests for Admin badge
   const adminPendingCount = (user?.role === 'admin' && allUsers.length > 0)
       ? allUsers.reduce((acc, u) => acc + (u.pendingCourseIds?.length || 0), 0)
@@ -444,17 +548,90 @@ Deepmetrics Academic Administration`
         return (
           <div className="animate-fade-in">
             {/* Hero Section */}
-            <section className="relative bg-indigo-900 text-white py-24 sm:py-32 overflow-hidden">
+            <section className="relative bg-indigo-900 text-white py-24 sm:py-32 overflow-hidden group">
                <div className="absolute inset-0 overflow-hidden">
-                 <img src="https://images.unsplash.com/photo-1551434678-e076c223a692?ixlib=rb-1.2.1&ixid=eyJhcHBfaWQiOjEyMDd9&auto=format&fit=crop&w=2850&q=80" alt="" className="w-full h-full object-cover opacity-10" />
+                 <img src={homeHeroImage} alt="Background" className="w-full h-full object-cover opacity-10 transition-all duration-700" />
                </div>
+               
+               {/* Admin Home Controls */}
+               {user?.role === 'admin' && (
+                   <div className="absolute top-4 right-4 z-30 flex flex-col items-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+                        {/* Edit Text Toggle */}
+                        {!isEditingHome ? (
+                             <button 
+                                onClick={() => { setTempHomeContent(homeContent); setIsEditingHome(true); }}
+                                className="bg-white/10 hover:bg-white/20 backdrop-blur-md text-white px-3 py-1.5 rounded-lg text-xs font-medium border border-white/20 flex items-center gap-2 transition-colors shadow-lg"
+                             >
+                                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
+                                Edit Text Content
+                             </button>
+                        ) : (
+                             <div className="flex gap-2">
+                                <button 
+                                    onClick={handleCancelEditHome}
+                                    className="bg-red-500/80 hover:bg-red-600/90 text-white px-3 py-1.5 rounded-lg text-xs font-medium backdrop-blur-md transition-colors shadow-lg"
+                                >
+                                    Cancel
+                                </button>
+                                <button 
+                                    onClick={handleSaveHomeContent}
+                                    className="bg-green-500/80 hover:bg-green-600/90 text-white px-3 py-1.5 rounded-lg text-xs font-medium backdrop-blur-md transition-colors shadow-lg"
+                                >
+                                    Save Changes
+                                </button>
+                             </div>
+                        )}
+
+                        {/* Background Image Controls (Only visible when not text editing to reduce clutter) */}
+                        {!isEditingHome && (
+                            <>
+                                <label className="cursor-pointer bg-white/10 hover:bg-white/20 backdrop-blur-md text-white px-3 py-1.5 rounded-lg text-xs font-medium border border-white/20 flex items-center gap-2 transition-colors shadow-lg">
+                                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+                                    Change Background
+                                    <input type="file" className="hidden" accept="image/*" onChange={handleHomeImageUpload} />
+                                </label>
+                                {homeHeroImage !== DEFAULT_HERO_IMAGE && (
+                                    <button 
+                                        onClick={handleResetHomeImage}
+                                        className="bg-red-500/80 hover:bg-red-600/90 text-white px-3 py-1 rounded-lg text-xs font-medium backdrop-blur-md transition-colors shadow-lg"
+                                    >
+                                        Reset Default
+                                    </button>
+                                )}
+                            </>
+                        )}
+                   </div>
+               )}
+
                <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-                 <h1 className="text-4xl font-extrabold tracking-tight sm:text-5xl lg:text-6xl mb-6">
-                   Master the Data Future
-                 </h1>
-                 <p className="mt-6 text-xl text-indigo-100 max-w-3xl mx-auto">
-                   Deepmetrics Analytics Institute provides world-class education in Data Science, AI, and Business Intelligence. Transform your career today.
-                 </p>
+                 {isEditingHome ? (
+                    <div className="flex flex-col gap-4 items-center">
+                        <input 
+                            type="text" 
+                            value={tempHomeContent.heroTitle}
+                            onChange={(e) => setTempHomeContent({...tempHomeContent, heroTitle: e.target.value})}
+                            className="text-4xl font-extrabold tracking-tight sm:text-5xl lg:text-6xl text-center bg-white/20 border border-white/30 rounded-lg p-2 text-white w-full max-w-4xl placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-indigo-400"
+                            placeholder="Hero Title"
+                        />
+                        <textarea 
+                            value={tempHomeContent.heroSubtitle}
+                            onChange={(e) => setTempHomeContent({...tempHomeContent, heroSubtitle: e.target.value})}
+                            className="mt-6 text-xl text-center bg-white/20 border border-white/30 rounded-lg p-2 text-white w-full max-w-3xl placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-indigo-400"
+                            rows={3}
+                            placeholder="Hero Subtitle"
+                        />
+                    </div>
+                 ) : (
+                    <>
+                        <h1 className="text-4xl font-extrabold tracking-tight sm:text-5xl lg:text-6xl mb-6 animate-float">
+                            {homeContent.heroTitle}
+                        </h1>
+                        <p className="mt-6 text-xl text-indigo-100 max-w-3xl mx-auto animate-float" style={{ animationDelay: '1s' }}>
+                            {homeContent.heroSubtitle}
+                        </p>
+                    </>
+                 )}
+                 
                  <div className="mt-10 flex justify-center gap-4">
                    <Button size="lg" onClick={() => setCurrentView(View.COURSES)}>Browse Training Programs</Button>
                    <Button size="lg" variant="outline" className="bg-transparent text-white border-white hover:bg-white hover:text-indigo-900" onClick={() => setCurrentView(View.REGISTER)}>Join Institute</Button>
@@ -466,29 +643,97 @@ Deepmetrics Academic Administration`
             <section className="py-24 bg-white">
                 <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
                     <div className="text-center mb-16">
-                        <h2 className="text-3xl font-extrabold text-gray-900 sm:text-4xl">Why Choose Deepmetrics?</h2>
+                        <h2 className="text-3xl font-extrabold text-gray-900 sm:text-4xl animate-slide-up">Why Choose Deepmetrics?</h2>
                     </div>
                     <div className="grid grid-cols-1 gap-8 md:grid-cols-3">
-                        <div className="p-6 bg-gray-50 rounded-xl text-center">
+                        {/* Feature 1 */}
+                        <div className="p-6 bg-gray-50 rounded-xl text-center relative group/feature hover:-translate-y-2 transition-transform duration-300">
                             <div className="w-12 h-12 bg-indigo-100 text-indigo-600 rounded-lg flex items-center justify-center mx-auto mb-4">
                                 <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" /></svg>
                             </div>
-                            <h3 className="text-lg font-medium text-gray-900 mb-2">AI-Driven Learning</h3>
-                            <p className="text-gray-500">Personalized curriculum recommendations powered by advanced AI to match your career path.</p>
+                            {isEditingHome ? (
+                                <div className="space-y-2">
+                                    <input 
+                                        type="text" 
+                                        value={tempHomeContent.features[0].title}
+                                        onChange={(e) => handleFeatureEdit(0, 'title', e.target.value)}
+                                        className="w-full text-center font-medium border border-gray-300 rounded p-1 text-gray-900"
+                                        placeholder="Feature Title"
+                                    />
+                                    <textarea 
+                                        value={tempHomeContent.features[0].description}
+                                        onChange={(e) => handleFeatureEdit(0, 'description', e.target.value)}
+                                        className="w-full text-center text-sm border border-gray-300 rounded p-1 text-gray-500"
+                                        rows={3}
+                                        placeholder="Feature Description"
+                                    />
+                                </div>
+                            ) : (
+                                <>
+                                    <h3 className="text-lg font-medium text-gray-900 mb-2">{homeContent.features[0].title}</h3>
+                                    <p className="text-gray-500">{homeContent.features[0].description}</p>
+                                </>
+                            )}
                         </div>
-                        <div className="p-6 bg-gray-50 rounded-xl text-center">
+
+                        {/* Feature 2 */}
+                        <div className="p-6 bg-gray-50 rounded-xl text-center relative group/feature hover:-translate-y-2 transition-transform duration-300">
                              <div className="w-12 h-12 bg-indigo-100 text-indigo-600 rounded-lg flex items-center justify-center mx-auto mb-4">
                                 <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19.428 15.428a2 2 0 00-1.022-.547l-2.384-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" /></svg>
                             </div>
-                            <h3 className="text-lg font-medium text-gray-900 mb-2">Expert Instructors</h3>
-                            <p className="text-gray-500">Learn from industry veterans from top tech companies and research institutions.</p>
+                            {isEditingHome ? (
+                                <div className="space-y-2">
+                                    <input 
+                                        type="text" 
+                                        value={tempHomeContent.features[1].title}
+                                        onChange={(e) => handleFeatureEdit(1, 'title', e.target.value)}
+                                        className="w-full text-center font-medium border border-gray-300 rounded p-1 text-gray-900"
+                                        placeholder="Feature Title"
+                                    />
+                                    <textarea 
+                                        value={tempHomeContent.features[1].description}
+                                        onChange={(e) => handleFeatureEdit(1, 'description', e.target.value)}
+                                        className="w-full text-center text-sm border border-gray-300 rounded p-1 text-gray-500"
+                                        rows={3}
+                                        placeholder="Feature Description"
+                                    />
+                                </div>
+                            ) : (
+                                <>
+                                    <h3 className="text-lg font-medium text-gray-900 mb-2">{homeContent.features[1].title}</h3>
+                                    <p className="text-gray-500">{homeContent.features[1].description}</p>
+                                </>
+                            )}
                         </div>
-                        <div className="p-6 bg-gray-50 rounded-xl text-center">
+
+                        {/* Feature 3 */}
+                        <div className="p-6 bg-gray-50 rounded-xl text-center relative group/feature hover:-translate-y-2 transition-transform duration-300">
                              <div className="w-12 h-12 bg-indigo-100 text-indigo-600 rounded-lg flex items-center justify-center mx-auto mb-4">
                                 <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg>
                             </div>
-                            <h3 className="text-lg font-medium text-gray-900 mb-2">Hands-on Projects</h3>
-                            <p className="text-gray-500">Build a portfolio with real-world datasets and capstone projects to showcase to employers.</p>
+                            {isEditingHome ? (
+                                <div className="space-y-2">
+                                    <input 
+                                        type="text" 
+                                        value={tempHomeContent.features[2].title}
+                                        onChange={(e) => handleFeatureEdit(2, 'title', e.target.value)}
+                                        className="w-full text-center font-medium border border-gray-300 rounded p-1 text-gray-900"
+                                        placeholder="Feature Title"
+                                    />
+                                    <textarea 
+                                        value={tempHomeContent.features[2].description}
+                                        onChange={(e) => handleFeatureEdit(2, 'description', e.target.value)}
+                                        className="w-full text-center text-sm border border-gray-300 rounded p-1 text-gray-500"
+                                        rows={3}
+                                        placeholder="Feature Description"
+                                    />
+                                </div>
+                            ) : (
+                                <>
+                                    <h3 className="text-lg font-medium text-gray-900 mb-2">{homeContent.features[2].title}</h3>
+                                    <p className="text-gray-500">{homeContent.features[2].description}</p>
+                                </>
+                            )}
                         </div>
                     </div>
                 </div>
