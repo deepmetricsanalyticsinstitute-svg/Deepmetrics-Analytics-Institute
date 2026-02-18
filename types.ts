@@ -29,7 +29,8 @@ export interface Course {
   price: number; // In GHC
   tags: string[];
   image: string;
-  signatureImage?: string; // Base64 data URI for instructor signature
+  signatureImage?: string; // Signed URL for display
+  signaturePath?: string;  // Internal Storage Path
 }
 
 export interface User {
