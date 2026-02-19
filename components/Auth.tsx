@@ -64,7 +64,6 @@ export const Auth: React.FC<AuthProps> = ({ view, onSwitch, onAuthSuccess }) => 
 
         if (data.session) {
            const isAdmin = email.toLowerCase() === 'deepmetricsanalyticsinstitute@gmail.com';
-           // Try to get name from metadata, fallback to email part
            const userName = data.user.user_metadata?.name || email.split('@')[0];
            onAuthSuccess(userName, email, isAdmin);
         } else {
@@ -85,26 +84,21 @@ export const Auth: React.FC<AuthProps> = ({ view, onSwitch, onAuthSuccess }) => 
         if (error) throw error;
 
         // Registration Successful
-        
-        // 1. Prevent Auto-login: If a session was created (e.g. email confirm disabled), sign out immediately.
         if (data.session) {
-            await supabase.auth.signOut();
+            // Auto-login if session is returned (email confirmation disabled or optional)
+            const isAdmin = email.toLowerCase() === 'deepmetricsanalyticsinstitute@gmail.com';
+            const userName = name || email.split('@')[0];
+            onAuthSuccess(userName, email, isAdmin);
+        } else {
+             // Email confirmation required
+             setSuccessMsg("Your account has been created. Please check your email and verify your address before logging in.");
+             setPassword('');
         }
-
-        // 2. Set Success Message
-        setSuccessMsg("Your account has been created. Please check your email and verify your address before logging in.");
-        
-        // 3. Clear password but keep email
-        setPassword('');
-        
-        // 4. Redirect to Login View
-        onSwitch(View.LOGIN);
       }
     } catch (err: any) {
       console.error("Auth Error:", err);
       let errorMessage = err.message || "An error occurred during authentication.";
       
-      // Handle Rate Limit Errors
       if (errorMessage.toLowerCase().includes("rate limit") || errorMessage.toLowerCase().includes("security purposes")) {
           errorMessage = "Too many attempts. Please wait 60 seconds before trying again.";
       }

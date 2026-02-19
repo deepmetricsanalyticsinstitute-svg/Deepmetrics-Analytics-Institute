@@ -275,7 +275,7 @@ const App: React.FC = () => {
   };
 
   const handleAuthSuccess = async (name: string, email: string, isAdmin: boolean) => {
-      setCurrentView(View.COURSES);
+      setCurrentView(View.HOME); // Redirect to Home as per requirement
       addNotification(`Welcome, ${name}!`, 'success');
   };
 
