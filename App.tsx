@@ -107,11 +107,12 @@ const App: React.FC = () => {
 
   const fetchUserData = async (userId: string, sessionUser?: any) => {
       // 1. Fetch Profile
+      // Use maybeSingle() instead of single() to avoid errors if row is missing
       const { data: profile, error: profileError } = await supabase
           .from('profiles')
           .select('*')
           .eq('id', userId)
-          .single();
+          .maybeSingle();
       
       let name = 'Student';
       let email = '';
