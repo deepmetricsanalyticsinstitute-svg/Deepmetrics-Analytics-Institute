@@ -105,7 +105,7 @@ const App: React.FC = () => {
       }
   };
 
-  const fetchUserData = async (userId: string) => {
+  const fetchUserData = async (userId: string, sessionUser?: any) => {
       // 1. Fetch Profile
       const { data: profile, error: profileError } = await supabase
           .from('profiles')
@@ -113,7 +113,29 @@ const App: React.FC = () => {
           .eq('id', userId)
           .single();
       
-      if (profileError || !profile) return null;
+      let name = 'Student';
+      let email = '';
+      let role: 'student' | 'admin' = 'student';
+
+      // Robust fallback strategy if profile is missing
+      if (profile) {
+          name = profile.name;
+          email = profile.email;
+          role = profile.role as 'student' | 'admin';
+      } else {
+          // Fallback to session data
+          const user = sessionUser || (await supabase.auth.getUser()).data.user;
+          if (user && user.id === userId) {
+              name = user.user_metadata?.name || user.email?.split('@')[0] || 'Student';
+              email = user.email || '';
+              if (email.toLowerCase() === 'deepmetricsanalyticsinstitute@gmail.com') {
+                  role = 'admin';
+              }
+          } else {
+              // No user data available
+              return null;
+          }
+      }
 
       // 2. Fetch Enrollments
       const { data: enrollments, error: enrollError } = await supabase
@@ -133,10 +155,10 @@ const App: React.FC = () => {
       });
 
       const userObj: User = {
-          id: profile.id,
-          name: profile.name,
-          email: profile.email,
-          role: profile.role as 'student' | 'admin',
+          id: userId,
+          name: name,
+          email: email,
+          role: role,
           registeredCourseIds: registered,
           pendingCourseIds: pending,
           completedCourseIds: completed,
@@ -186,7 +208,7 @@ const App: React.FC = () => {
         await fetchHomeContent();
 
         if (session) {
-            const userData = await fetchUserData(session.user.id);
+            const userData = await fetchUserData(session.user.id, session.user);
             if (userData) {
                 setUser(userData);
             }
@@ -198,7 +220,7 @@ const App: React.FC = () => {
     // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
         if (session) {
-             const userData = await fetchUserData(session.user.id);
+             const userData = await fetchUserData(session.user.id, session.user);
              setUser(userData);
              // Re-fetch courses/home to ensure signed URLs are valid for this user context
              fetchCourses();
@@ -719,7 +741,6 @@ const App: React.FC = () => {
           </div>
         );
 
-      // ... keep existing cases for View.COURSES, LOGIN, etc. ...
       case View.COURSES:
         return (
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 animate-fade-in">
@@ -793,9 +814,8 @@ const App: React.FC = () => {
                     </Button>
                 )}
             </div>
-            {/* Same Dashboard UI Code as before... ensuring it uses `courses` state which now has signed URLs */}
+            
             {user.role === 'admin' && (
-                 /* Admin UI Block (Pending Requests, Student Progress) - unchanged */
                  <div className="mb-12 bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
                     <div className="px-6 py-4 border-b border-gray-200 bg-gray-50 flex items-center justify-between">
                         <h2 className="text-lg font-bold text-gray-900 flex items-center gap-2">Completion Requests</h2>
