@@ -794,7 +794,7 @@ const App: React.FC = () => {
       case View.VIDEO_GENERATOR:
         return <VideoGenerator user={user} />;
 
-      case View.DASHBOARD:
+      case View.DASHBOARD: {
         if (!user) return null;
         const myCourses = courses.filter(c => user.registeredCourseIds.includes(c.id));
         const pendingRequests = user.role === 'admin' 
@@ -863,8 +863,9 @@ const App: React.FC = () => {
             )}
           </div>
         );
+      }
       
-      case View.CERTIFICATE:
+      case View.CERTIFICATE: {
          if (!user || !selectedCertificateCourseId) return null;
          const certCourse = courses.find(c => c.id === selectedCertificateCourseId);
          if (!certCourse) return <div>Training Program not found</div>;
@@ -878,6 +879,7 @@ const App: React.FC = () => {
                 allCourses={courses}
              />
          );
+      }
       
       case View.EDIT_COURSE:
         if (!editingCourse || user?.role !== 'admin') return null;
