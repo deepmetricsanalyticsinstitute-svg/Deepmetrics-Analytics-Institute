@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import { View, User, Course, CourseLevel } from './types';
-import { COURSES } from './constants';
 import { Navbar } from './components/Navbar';
 import { CourseCard } from './components/CourseCard';
 import { Auth } from './components/Auth';
@@ -48,7 +47,7 @@ const App: React.FC = () => {
   const [currentView, setCurrentView] = useState<View>(View.HOME);
   const [user, setUser] = useState<User | null>(null);
   const [allUsers, setAllUsers] = useState<User[]>([]);
-  const [courses, setCourses] = useState<Course[]>(COURSES);
+  const [courses, setCourses] = useState<Course[]>([]);
   const [selectedCertificateCourseId, setSelectedCertificateCourseId] = useState<string | null>(null);
   const [editingCourse, setEditingCourse] = useState<Course | null>(null);
   const [courseToDelete, setCourseToDelete] = useState<string | null>(null);
@@ -57,6 +56,7 @@ const App: React.FC = () => {
   // Home Page Customization State
   const DEFAULT_HERO_IMAGE = 'https://images.unsplash.com/photo-1551434678-e076c223a692?ixlib=rb-1.2.1&ixid=eyJhcHBfaWQiOjEyMDd9&auto=format&fit=crop&w=2850&q=80';
   const [homeHeroImage, setHomeHeroImage] = useState<string>(DEFAULT_HERO_IMAGE);
+  const [homeHeroPath, setHomeHeroPath] = useState<string | null>(null);
   
   // Text Content State
   const [homeContent, setHomeContent] = useState<HomeContent>(DEFAULT_HOME_CONTENT);
@@ -72,20 +72,30 @@ const App: React.FC = () => {
       const { data, error } = await supabase.from('courses').select('*');
       if (error) {
           console.error('Error fetching courses:', error);
-      } else if (data && data.length > 0) {
+          addNotification('Failed to load training programs from database.', 'info');
+      } else if (data) {
           // Process courses to sign URLs
           const processedCourses = await Promise.all(data.map(async (c: any) => {
               const signatureUrl = c.signature_image ? await getSignedUrl(c.signature_image) : undefined;
+              
+              // Handle Course Image (URL vs Path)
+              let imageUrl = c.image;
+              let imagePath = undefined;
+              if (c.image && !c.image.startsWith('http')) {
+                  imagePath = c.image;
+                  imageUrl = await getSignedUrl(c.image);
+              }
+
               return {
                   ...c,
                   instructorBio: c.instructor_bio,
+                  image: imageUrl || c.image,
+                  imagePath: imagePath,
                   signatureImage: signatureUrl,
                   signaturePath: c.signature_image
               };
           }));
           setCourses(processedCourses);
-      } else {
-          setCourses(COURSES);
       }
   };
 
@@ -99,6 +109,7 @@ const App: React.FC = () => {
               features: content.features
           });
           if (content.heroImage) {
+              setHomeHeroPath(content.heroImage);
               const url = await getSignedUrl(content.heroImage);
               if (url) setHomeHeroImage(url);
           }
@@ -521,12 +532,20 @@ const App: React.FC = () => {
         // Upload to Supabase Storage
         uploadToStorage(file, 'home', 'hero')
             .then(async (path) => {
+                // Delete old file if exists and is not default
+                if (homeHeroPath && !homeHeroPath.startsWith('http')) {
+                    await supabase.storage.from('app-files').remove([homeHeroPath]);
+                }
+
                 // Save path to DB
                 await saveHomeConfigToDB(homeContent, path);
                 
                 // Get signed URL for immediate display
                 const signedUrl = await getSignedUrl(path);
-                if (signedUrl) setHomeHeroImage(signedUrl);
+                if (signedUrl) {
+                    setHomeHeroImage(signedUrl);
+                    setHomeHeroPath(path);
+                }
                 
                 addNotification('Home page background updated successfully', 'success');
             })
@@ -537,8 +556,12 @@ const App: React.FC = () => {
     }
   };
 
-  const handleResetHomeImage = () => {
+  const handleResetHomeImage = async () => {
+    if (homeHeroPath && !homeHeroPath.startsWith('http')) {
+        await supabase.storage.from('app-files').remove([homeHeroPath]);
+    }
     setHomeHeroImage(DEFAULT_HERO_IMAGE);
+    setHomeHeroPath(null);
     saveHomeConfigToDB(homeContent, DEFAULT_HERO_IMAGE); // This is a public URL, works fine
     addNotification('Restored default background', 'info');
   };
@@ -559,9 +582,8 @@ const App: React.FC = () => {
   };
 
   const updateHomeTextOnly = async (content: HomeContent) => {
-      // Fetch current to get the image path (to avoid overwriting with signed URL)
-      const { data } = await supabase.from('site_settings').select('value').eq('key', 'home_content').single();
-      const currentImage = data?.value?.heroImage || DEFAULT_HERO_IMAGE;
+      // Use current path from state or default
+      const currentImage = homeHeroPath || DEFAULT_HERO_IMAGE;
       
       const payload = {
           heroTitle: content.heroTitle,

@@ -54,6 +54,8 @@ export const CourseEditor: React.FC<CourseEditorProps> = ({ course, onSave, onCa
   const [formData, setFormData] = useState<Course>(course);
   const [signatureError, setSignatureError] = useState<string | null>(null);
   const [isUploading, setIsUploading] = useState(false);
+  const [imageError, setImageError] = useState<string | null>(null);
+  const [isUploadingImage, setIsUploadingImage] = useState(false);
 
   useEffect(() => {
     setFormData(course);
@@ -70,6 +72,49 @@ export const CourseEditor: React.FC<CourseEditorProps> = ({ course, onSave, onCa
   const handleTagsChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const tags = e.target.value.split(',').map(tag => tag.trim()).filter(Boolean);
     setFormData(prev => ({ ...prev, tags }));
+  };
+
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+      setImageError(null);
+      const file = e.target.files?.[0];
+      if (file) {
+          if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
+              setImageError("Invalid format. Use JPG, PNG, or WEBP.");
+              e.target.value = '';
+              return;
+          }
+          if (file.size > 2 * 1024 * 1024) {
+              setImageError("Image too large. Max 2MB.");
+              e.target.value = '';
+              return;
+          }
+
+          setIsUploadingImage(true);
+          try {
+             // 1. Upload to Supabase Storage
+             const path = await uploadToStorage(file, 'courses', formData.id);
+             
+             // 2. Get Signed URL for display
+             const url = await getSignedUrl(path);
+
+             // 3. Delete old image if it was a path
+             if (formData.imagePath) {
+                 await deleteFromStorage(formData.imagePath);
+             }
+
+             // 4. Update State
+             setFormData(prev => ({ 
+                 ...prev, 
+                 imagePath: path,
+                 image: url || '' // temporary display URL
+             }));
+          } catch (err) {
+              console.error(err);
+              setImageError("Upload failed. Please try again.");
+          } finally {
+              setIsUploadingImage(false);
+          }
+      }
   };
 
   const handleSignatureUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -164,14 +209,28 @@ export const CourseEditor: React.FC<CourseEditorProps> = ({ course, onSave, onCa
               <input type="number" name="price" value={formData.price} onChange={handleChange} className="w-full rounded-md border border-gray-300 px-3 py-2" />
             </div>
 
-             <div className="col-span-2">
+            <div className="col-span-2">
               <label className="block text-sm font-medium text-gray-700 mb-1">Tags</label>
               <input type="text" value={formData.tags.join(', ')} onChange={handleTagsChange} className="w-full rounded-md border border-gray-300 px-3 py-2" />
             </div>
-            
-             <div className="col-span-2">
-              <label className="block text-sm font-medium text-gray-700 mb-1">Image URL</label>
-              <input type="url" name="image" value={formData.image} onChange={handleChange} required className="w-full rounded-md border border-gray-300 px-3 py-2" />
+
+            <div className="col-span-2">
+              <label className="block text-sm font-medium text-gray-700 mb-1">Course Cover Image</label>
+              <div className="flex items-start gap-4">
+                  <div className="flex-1">
+                      <input type="url" name="image" value={formData.image} onChange={handleChange} placeholder="Enter Image URL or Upload File" className="w-full rounded-md border border-gray-300 px-3 py-2 mb-2" />
+                      <div className="flex items-center gap-2">
+                          <input type="file" accept="image/*" onChange={handleImageUpload} className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100" />
+                      </div>
+                      {isUploadingImage && <p className="text-xs text-indigo-600 mt-1">Uploading...</p>}
+                      {imageError && <p className="text-xs text-red-600 mt-1">{imageError}</p>}
+                  </div>
+                  {formData.image && (
+                      <div className="h-24 w-40 bg-gray-100 rounded overflow-hidden border border-gray-200 flex-shrink-0">
+                          <img src={formData.image} alt="Preview" className="w-full h-full object-cover" />
+                      </div>
+                  )}
+              </div>
             </div>
 
             <div className="col-span-2 bg-gray-50 p-4 rounded-lg border border-gray-200">

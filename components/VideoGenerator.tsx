@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Button } from './Button';
 import { User } from '../types';
-import { supabase, uploadToStorage, getSignedUrl } from '../supabaseClient';
+import { supabase, uploadToStorage, getSignedUrl, deleteFromStorage } from '../supabaseClient';
 
 interface VideoGeneratorProps {
   user: User | null;
@@ -53,6 +53,31 @@ export const VideoGenerator: React.FC<VideoGeneratorProps> = ({ user }) => {
              return { ...v, url };
           }));
           setVideos(processed);
+      }
+  };
+
+  const handleDeleteVideo = async (video: VideoItem) => {
+      if (!confirm(`Are you sure you want to delete "${video.title}"?`)) return;
+
+      try {
+          // 1. Delete from Storage
+          if (video.url && !video.url.startsWith('http')) {
+              await deleteFromStorage(video.url);
+          }
+
+          // 2. Delete from DB
+          const { error } = await supabase.from('videos').delete().eq('id', video.id);
+          if (error) throw error;
+
+          // 3. Refresh
+          await fetchVideos();
+          if (videoName === video.title) {
+              setVideoName('');
+              setVideoUrl(null);
+          }
+      } catch (err) {
+          console.error(err);
+          setError("Failed to delete video.");
       }
   };
 
@@ -191,10 +216,21 @@ export const VideoGenerator: React.FC<VideoGeneratorProps> = ({ user }) => {
                   <div className="flex-1 overflow-y-auto">
                     <ul className="divide-y divide-gray-100">
                         {filteredVideos.map((item) => (
-                            <li key={item.id} onClick={() => handleSelectVideo(item)} className={`px-6 py-4 hover:bg-gray-50 cursor-pointer ${videoName === item.title ? 'bg-indigo-50 border-l-4 border-indigo-600' : ''}`}>
-                                <div className="flex-1 min-w-0">
-                                    <p className="text-sm font-medium truncate text-gray-900">{item.title}</p>
-                                    <div className="flex gap-2 mt-1"><span className="text-xs text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded">{item.duration}</span><span className="text-xs text-indigo-600 bg-indigo-50 px-1.5 py-0.5 rounded">{item.level}</span></div>
+                            <li key={item.id} className={`px-6 py-4 hover:bg-gray-50 cursor-pointer ${videoName === item.title ? 'bg-indigo-50 border-l-4 border-indigo-600' : ''}`}>
+                                <div className="flex items-center justify-between">
+                                    <div className="flex-1 min-w-0" onClick={() => handleSelectVideo(item)}>
+                                        <p className="text-sm font-medium truncate text-gray-900">{item.title}</p>
+                                        <div className="flex gap-2 mt-1"><span className="text-xs text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded">{item.duration}</span><span className="text-xs text-indigo-600 bg-indigo-50 px-1.5 py-0.5 rounded">{item.level}</span></div>
+                                    </div>
+                                    {isAdmin && (
+                                        <button 
+                                            onClick={(e) => { e.stopPropagation(); handleDeleteVideo(item); }}
+                                            className="ml-2 text-gray-400 hover:text-red-600 p-1"
+                                            title="Delete Video"
+                                        >
+                                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                                        </button>
+                                    )}
                                 </div>
                             </li>
                         ))}

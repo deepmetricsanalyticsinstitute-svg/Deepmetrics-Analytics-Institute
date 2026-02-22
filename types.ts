@@ -28,7 +28,8 @@ export interface Course {
   level: CourseLevel;
   price: number; // In GHC
   tags: string[];
-  image: string;
+  image: string; // Display URL (Signed or Public)
+  imagePath?: string; // Internal Storage Path
   signatureImage?: string; // Signed URL for display
   signaturePath?: string;  // Internal Storage Path
 }
